@@ -1,0 +1,137 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /RobotModel1
+        - /LaserScan1
+        - /Odometry1
+      Splitter Ratio: 0.5
+    Tree Height: 700
+  - Class: rviz_common/Views
+    Name: Views
+
+Visualization Manager:
+  Class: ''
+  Displays:
+    - Alpha: 0.4
+      Cell Size: 1
+      Class: rviz_default_plugins/Grid
+      Color: 160; 160; 164
+      Enabled: true
+      Name: Grid
+      Plane: XY
+      Plane Cell Count: 12
+      Reference Frame: <Fixed Frame>
+      Value: true
+
+    - Alpha: 1
+      Class: rviz_default_plugins/RobotModel
+      Description Source: Topic
+      Description Topic:
+        Depth: 5
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /robot_description
+      Enabled: true
+      Name: RobotModel
+      Visual Enabled: true
+      Collision Enabled: false
+      Value: true
+
+    - Class: rviz_default_plugins/TF
+      Enabled: false
+      Name: TF
+      Marker Scale: 0.5
+      Show Arrows: true
+      Show Axes: true
+      Show Names: false
+      Value: false
+
+    - Alpha: 1
+      Class: rviz_default_plugins/LaserScan
+      Color: 255; 50; 0
+      Color Transformer: FlatColor
+      Decay Time: 0
+      Enabled: true
+      Name: LaserScan
+      Size (m): 0.04
+      Style: Spheres
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /scan
+      Use Fixed Frame: true
+      Value: true
+
+    - Angle Tolerance: 0.05
+      Class: rviz_default_plugins/Odometry
+      Enabled: true
+      Keep: 200
+      Name: Odometry
+      Position Tolerance: 0.1
+      Shape:
+        Alpha: 1
+        Color: 0; 180; 255
+        Head Length: 0.15
+        Head Radius: 0.06
+        Shaft Length: 0.25
+        Shaft Radius: 0.03
+        Value: Arrow
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /diff_cont/odom
+      Value: true
+
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: Goal Marker
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 10
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /visualization_marker
+      Value: true
+
+  Enabled: true
+  Global Options:
+    Background Color: 40; 40; 40
+    Fixed Frame: odom
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+      Hide Inactive Objects: true
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 16
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+      Name: Current View
+      Pitch: 1.5707
+      Target Frame: odom
+      Value: Orbit (rviz)
+      Yaw: 0
+    Saved: ~
+
+Window Geometry:
+  Height: 900
+  Width: 1400
+  X: 50
+  Y: 50

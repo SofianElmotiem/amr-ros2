@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+  
+  <xacro:macro name="wrist" params="parent *joint_origin *joint_axis">
+	<joint name="wrist_joint" type="revolute">
+	  <xacro:insert_block name="joint_origin"/>
+	  <parent link="${parent}"/>
+	  <child link="wrist_link"/>
+          <limit effort="100" velocity="100" lower="-3.14" upper = "3.14"/>
+          <dynamics damping="10.0" friction="1.0"/>
+	  <xacro:insert_block name="joint_axis"/>
+	</joint>
+
+	<link name="wrist_link">
+	  <visual>
+		  <geometry>
+		    <mesh filename="package://robot_description/meshes/STL/wrist/wrist.stl"/>
+		  </geometry>
+	  </visual>
+	  <collision>
+		  <geometry>
+		    <mesh filename="package://robot_description/meshes/STL/wrist/wrist.stl"/>
+		  </geometry>
+	  </collision>
+	  <inertial>
+		<origin xyz="0.0 0.0 0.0"/>
+		<mass value="0.085"/>
+		<inertia ixx="0.00003082" ixy="0.0000000191" ixz="0.0000000023" iyy="0.00002822" iyz="0.0000025481" izz="0.00003152"/>
+	  </inertial>
+          <surface>
+            <friction>
+              <ode>
+                <mu1>1.2</mu1>
+                <mu2>1.2</mu2>
+                <kp>1e15</kp>
+                <kd>1e13</kd>
+              </ode>
+            </friction>
+            <bounce>
+              <restitution_coefficient>0.01</restitution_coefficient>
+              <threshold>0</threshold>
+            </bounce>
+            <contact>
+              <ode>
+                <max_vel>10</max_vel>
+              </ode>
+            </contact>
+          </surface>
+	</link>
+  </xacro:macro>
+  
+</robot>

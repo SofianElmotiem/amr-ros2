@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <xacro:include filename="$(find robot_description)/urdf/hand/hand.gazebo.xacro"/>
+  
+  <xacro:macro name="hand_v0" params="prefix parent *joint_origin *joint_axis">
+	<joint name="${prefix}_hand_joint" type="revolute">
+	  <xacro:insert_block name="joint_origin"/>
+	  <parent link="${parent}"/>
+	  <child link="${prefix}_hand_link"/>
+          <limit effort="10" velocity="2" lower="-3.14159" upper = "3.14159"/>
+          <dynamics damping="0.005" friction="0.1"/>
+	  <xacro:insert_block name="joint_axis"/>
+	</joint>
+
+	<link name="${prefix}_hand_link">
+	  <visual>
+		  <geometry>
+		    <mesh filename="package://robot_description/meshes/STL/hand/hand.stl"/>
+		  </geometry>
+	  </visual>
+	  <collision>
+		  <geometry>
+		    <mesh filename="package://robot_description/meshes/STL/hand/hand.stl"/>
+		  </geometry>
+	  </collision>
+	  <inertial>
+		  <origin xyz="0.045 0.0 0.0"/>
+		  <mass value="0.07"/>
+		  <inertia ixx="0.0000146" ixy="0" ixz="0" iyy="0.0000317" iyz="0" izz="0.0000328"/>
+	  </inertial>
+	</link>
+
+  </xacro:macro>
+</robot>

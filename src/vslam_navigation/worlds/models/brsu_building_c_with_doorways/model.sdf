@@ -1,0 +1,28 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <model name="brsu_building_c_with_doorways">
+    <link name="link">
+      <visual name="visual">
+        <geometry>
+          <mesh>
+            <uri>file://brsu_building_c_with_doorways.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <script>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+            <name>Gazebo/Grey</name>
+          </script>
+        </material>
+      </visual>
+      <collision name="collision">
+        <geometry>
+          <mesh>
+            <uri>file://brsu_building_c_with_doorways.stl</uri>
+          </mesh>
+        </geometry>
+      </collision>
+    </link>
+    <static>1</static>
+  </model>
+</sdf>

@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <xacro:macro name="camera_gazebo_v0">
+
+    <gazebo reference="camera_link">
+      <material>Gazebo/White</material>
+    </gazebo>
+
+    <!-- RGBD depth sensor — publishes RGB + depth + pointcloud -->
+    <gazebo reference="camera_link">
+      <sensor type="depth" name="rgbd_camera_sensor">
+        <update_rate>10</update_rate>
+        <camera name="rgbd_camera">
+          <horizontal_fov>1.500</horizontal_fov>
+          <image>
+            <width>640</width>
+            <height>480</height>
+            <format>R8G8B8</format>
+          </image>
+          <clip>
+            <near>0.1</near>
+            <far>8.0</far>
+          </clip>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.007</stddev>
+          </noise>
+        </camera>
+        <plugin name="gazebo_ros_camera" filename="libgazebo_ros_camera.so">
+          <ros>
+            <remapping>~/image_raw:=/rgbd_camera/image_raw</remapping>
+            <remapping>~/depth/image_raw:=/rgbd_camera/depth/image_raw</remapping>
+            <remapping>~/camera_info:=/rgbd_camera/camera_info</remapping>
+            <remapping>~/depth/camera_info:=/rgbd_camera/depth/camera_info</remapping>
+            <remapping>~/points:=/rgbd_camera/points</remapping>
+          </ros>
+          <camera_name>rgbd_camera</camera_name>
+          <frame_name>camera_color_optical_frame</frame_name>
+          <min_depth>0.1</min_depth>
+          <max_depth>8.0</max_depth>
+        </plugin>
+      </sensor>
+    </gazebo>
+
+  </xacro:macro>
+
+</robot>

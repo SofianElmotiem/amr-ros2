@@ -1,0 +1,25 @@
+moveit_setup_assistant_config:
+  urdf:
+    package: robot_description
+    relative_path: robot/omni_robot.xacro
+  srdf:
+    relative_path: config/omni_robot.srdf
+  package_settings:
+    author_name: robot mania
+    author_email: robot_mania@hoge.com
+    generated_timestamp: 1752062639
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity
+  modified_urdf:
+    xacros:
+      - control_xacro
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity

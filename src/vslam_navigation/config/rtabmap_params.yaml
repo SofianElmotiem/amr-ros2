@@ -1,0 +1,70 @@
+rtabmap:
+  ros__parameters:
+    # General
+    use_sim_time: true
+    frame_id: base_footprint
+    map_frame_id: map
+    odom_frame_id: odom
+    
+    # Topics
+    subscribe_rgb: true
+    subscribe_depth: true
+    subscribe_scan: true
+    subscribe_rgbd: false
+    
+    # Synchronization
+    approx_sync: true
+    sync_queue_size: 10
+    queue_size: 10
+    
+    # Database
+    database_path: ~/.ros/rtabmap.db
+    
+    # RTAB-Map Parameters (2D SLAM mode)
+    Reg/Strategy: "1"              # 0=Visual, 1=ICP, 2=Visual+ICP
+    Reg/Force3DoF: "true"          # 2D SLAM
+    Optimizer/GravitySigma: "0"    # Disable gravity (2D mode)
+    
+    # Grid parameters
+    Grid/Sensor: "2"               # 0=laser, 1=depth, 2=both
+    Grid/RangeMax: "10.0"
+    Grid/RangeMin: "0.3"
+    Grid/RayTracing: "true"
+    Grid/3D: "false"               # 2D occupancy grid
+    Grid/MaxObstacleHeight: "0.4"
+    Grid/MaxGroundHeight: "0.05"
+    Grid/NormalsSegmentation: "false"
+    
+    # Visual odometry (optional, can use wheel odometry)
+    RGBD/NeighborLinkRefining: "true"
+    RGBD/ProximityBySpace: "true"
+    RGBD/ProximityPathMaxNeighbors: "10"
+    RGBD/OptimizeFromGraphEnd: "false"
+    
+    # Loop closure
+    Mem/IncrementalMemory: "true"  # SLAM mode
+    Mem/InitWMWithAllNodes: "false"
+    
+    # ICP parameters for LiDAR
+    Icp/CorrespondenceRatio: "0.2"
+    Icp/MaxCorrespondenceDistance: "0.15"
+    Icp/VoxelSize: "0.05"
+    Icp/PointToPlane: "false"
+    
+    # Visual parameters
+    Vis/MinInliers: "12"
+    Vis/MaxDepth: "4.0"
+
+rgbd_sync:
+  ros__parameters:
+    use_sim_time: true
+    approx_sync: false
+    queue_size: 10
+
+rtabmap_viz:
+  ros__parameters:
+    use_sim_time: true
+    frame_id: base_footprint
+    subscribe_rgbd: true
+    subscribe_scan: true
+    approx_sync: true

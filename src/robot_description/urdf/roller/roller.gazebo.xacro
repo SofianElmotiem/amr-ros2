@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+  
+  <xacro:macro name="roller_gazebo_v0" params="prefix">
+	<gazebo reference="${prefix}_roller_link">
+	  <selfCollide>false</selfCollide>
+	  <gravity>false</gravity>
+      <mu1 value="0.0" />
+      <mu2 value="0.0" />
+    </gazebo>
+  </xacro:macro>
+</robot>

@@ -1,0 +1,10 @@
+build/
+install/
+log/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+venv/
+.venv/
+src/yolo3d/scripts/weights/resnet18.pkl
