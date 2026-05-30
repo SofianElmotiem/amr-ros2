@@ -114,7 +114,7 @@
       <name>imitation_learning_stage</name>
       <uri>model://imitation_learning_stage</uri>
       <static>true</static>
-      <pose>0 0 0 0 0 0</pose>
+      <pose>0 0 -0.05 0 0 0</pose>
     </include>
 
     <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">

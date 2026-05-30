@@ -1,14 +1,12 @@
 #!/usr/bin/python3
 """
-Imitation learning data collection for the omni-wheel AMR.
-Drive the robot with teleop keyboard while this script records
-(scan, cmd_vel) pairs to an HDF5 file.
+Imitation learning data collection.
+Drive from green square to red square. Episode ends only on
+collision or goal reached. Obstacles randomise each episode.
 
-Usage:
-  Terminal 1: ros2 launch drl_navigation launch_sim.launch.py
-  Terminal 2: ros2 run teleop_twist_keyboard teleop_twist_keyboard \
-                --ros-args --remap cmd_vel:=cmd_vel
-  Terminal 3: python3 collect_data.py
+Terminal 1: ros2 launch imitation_learning imitation_learning.launch.py
+Terminal 2: ros2 run teleop_twist_keyboard teleop_twist_keyboard
+Terminal 3: python3 collect_data.py
 """
 
 import rclpy
@@ -18,41 +16,41 @@ from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist
 from std_srvs.srv import Empty
 from gazebo_msgs.srv import SetEntityState
-from gazebo_msgs.msg import EntityState
 
 import numpy as np
-import h5py
-import os
-import copy
-import math
-import time
-import threading
+import h5py, os, time, threading
 
-# ── shared state ──────────────────────────────────────────────────────────────
-N_BINS     = 20       # LiDAR bins (matches imitation_learning model input)
+# ── constants ──────────────────────────────────────────────────────────────────
+N_BINS     = 20
 MAX_RANGE  = 12.0
 MIN_RANGE  = 0.3
 
-# Stage layout: start = green square, goal = red/purple square
-GOAL_X     =  2.5
-GOAL_Y     = -2.5
-GOAL_DELTA =  0.5   # distance threshold to consider goal reached
+START_X, START_Y = -1.8,  1.8   # green square
+GOAL_X,  GOAL_Y  =  2.0, -2.0   # red square
+GOAL_DELTA       =  0.5
 
-lidar_bins  = np.full(N_BINS, MAX_RANGE, dtype=np.float32)
-cmd_vel     = np.zeros(2, dtype=np.float32)   # [vx, wz]  (diff drive)
-robot_pos   = np.zeros(2, dtype=np.float32)   # [x, y]
-_lock       = threading.Lock()
+# 14 obstacle names from the world file
+BOX_NAMES = [f'box{i}' for i in range(1, 15)]
+
+# Stage area where blocks can be placed (inside stage, away from edges)
+STAGE_X = (-2.0, 2.0)
+STAGE_Y = (-2.0, 2.0)
+BLOCK_Z  = 0.1   # height from world file
+
+# ── shared state ──────────────────────────────────────────────────────────────
+lidar_bins = np.full(N_BINS, MAX_RANGE, dtype=np.float32)
+cmd_vel    = np.zeros(2, dtype=np.float32)
+robot_pos  = np.zeros(2, dtype=np.float32)
+_lock      = threading.Lock()
 
 
 def bin_scan(ranges):
-    """Bin 360-ray scan into N_BINS equal sectors, return min range per bin."""
     arr = np.array(ranges, dtype=np.float32)
-    arr = np.where(np.isfinite(arr), arr, MAX_RANGE)
+    arr = np.where(np.isfinite(arr) & (arr > MIN_RANGE), arr, MAX_RANGE)
     arr = np.clip(arr, MIN_RANGE, MAX_RANGE)
     n   = len(arr)
-    bins = np.array([arr[int(i*n/N_BINS):int((i+1)*n/N_BINS)].min()
+    return np.array([arr[int(i*n/N_BINS):int((i+1)*n/N_BINS)].min()
                      for i in range(N_BINS)], dtype=np.float32)
-    return bins
 
 
 # ── ROS nodes ─────────────────────────────────────────────────────────────────
@@ -60,32 +58,24 @@ class ScanNode(Node):
     def __init__(self):
         super().__init__('il_scan_node')
         self.create_subscription(LaserScan, '/scan', self._cb, 1)
-
     def _cb(self, msg):
         global lidar_bins
-        with _lock:
-            lidar_bins = bin_scan(msg.ranges)
-
+        with _lock: lidar_bins = bin_scan(msg.ranges)
 
 class OdomNode(Node):
     def __init__(self):
         super().__init__('il_odom_node')
         self.create_subscription(Odometry, '/odom', self._cb, 1)
-
     def _cb(self, msg):
         global robot_pos
         with _lock:
             robot_pos[0] = msg.pose.pose.position.x
             robot_pos[1] = msg.pose.pose.position.y
 
-
 class CmdVelNode(Node):
-    """Listens to what teleop is publishing and forwards it to the robot."""
     def __init__(self):
         super().__init__('il_cmdvel_node')
-        self.pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.create_subscription(Twist, '/cmd_vel', self._cb, 1)
-
     def _cb(self, msg):
         global cmd_vel
         with _lock:
@@ -96,118 +86,129 @@ class CmdVelNode(Node):
 class GazeboServices(Node):
     def __init__(self):
         super().__init__('il_gazebo_node')
-        self.unpause = self.create_client(Empty, '/unpause_physics')
-        self.pause   = self.create_client(Empty, '/pause_physics')
-        self.reset   = self.create_client(Empty, '/reset_world')
-        for cli in (self.unpause, self.pause, self.reset):
+        self.unpause   = self.create_client(Empty, '/unpause_physics')
+        self.set_state = self.create_client(SetEntityState, '/gazebo/set_entity_state')
+        for cli in (self.unpause, self.set_state):
             while not cli.wait_for_service(timeout_sec=2.0):
                 self.get_logger().info(f'Waiting for {cli.srv_name}...')
 
-    def call(self, client):
-        fut = client.call_async(Empty.Request())
-        rclpy.spin_until_future_complete(self, fut, timeout_sec=2.0)
+    def unpause_physics(self):
+        fut = self.unpause.call_async(Empty.Request())
+        rclpy.spin_until_future_complete(self, fut, timeout_sec=1.0)
+
+    def move_entity(self, name, x, y, z=BLOCK_Z, yaw=0.0):
+        req = SetEntityState.Request()
+        req.state.name = name
+        req.state.pose.position.x = float(x)
+        req.state.pose.position.y = float(y)
+        req.state.pose.position.z = float(z)
+        req.state.pose.orientation.w = float(np.cos(yaw / 2))
+        req.state.pose.orientation.z = float(np.sin(yaw / 2))
+        fut = self.set_state.call_async(req)
+        rclpy.spin_until_future_complete(self, fut, timeout_sec=1.0)
+
+    def teleport_robot(self):
+        self.move_entity('my_bot', START_X, START_Y, z=0.15, yaw=0.0)
+
+    def randomise_blocks(self):
+        """Move all 14 blocks to random non-overlapping positions."""
+        rng      = np.random.default_rng()
+        placed   = [(START_X, START_Y), (GOAL_X, GOAL_Y)]
+        min_sep  = 0.85
+
+        for name in BOX_NAMES:
+            for _ in range(200):
+                x = rng.uniform(*STAGE_X)
+                y = rng.uniform(*STAGE_Y)
+                if all(np.hypot(x-px, y-py) >= min_sep for px, py in placed):
+                    placed.append((x, y))
+                    self.move_entity(name, x, y, yaw=rng.uniform(0, 2*np.pi))
+                    break
 
 
 # ── data collection loop ──────────────────────────────────────────────────────
-def collect(total_episodes=100, max_steps=150, save_path=None):
+def collect(total_episodes=200, save_path=None):
     if save_path is None:
         data_dir  = os.path.join(os.path.dirname(__file__), '..', 'data')
         os.makedirs(data_dir, exist_ok=True)
         save_path = os.path.join(data_dir, 'training_data.hdf5')
 
     rclpy.init()
-    scan_node  = ScanNode()
-    odom_node  = OdomNode()
-    cmd_node   = CmdVelNode()
-    gz         = GazeboServices()
+    nodes = [ScanNode(), OdomNode(), CmdVelNode(), GazeboServices()]
+    gz    = nodes[-1]
 
-    executor = rclpy.executors.MultiThreadedExecutor()
-    for n in (scan_node, odom_node, cmd_node, gz):
-        executor.add_node(n)
-    spin_thread = threading.Thread(target=executor.spin, daemon=True)
-    spin_thread.start()
+    executor   = rclpy.executors.MultiThreadedExecutor()
+    for n in nodes: executor.add_node(n)
+    threading.Thread(target=executor.spin, daemon=True).start()
 
     obs_list, next_obs_list, action_list = [], [], []
-    reward_list, done_list, timeout_list = [], [], []
+    reward_list, done_list = [], []
 
-    print(f"\n=== Imitation Learning Data Collection ===")
-    print(f"Episodes: {total_episodes}  |  Max steps: {max_steps}")
-    print(f"Drive with teleop keyboard. Ctrl+C to stop early.\n")
+    print("\n=== Imitation Learning Data Collection ===")
+    print(f"Green ({START_X},{START_Y}) -> Red ({GOAL_X},{GOAL_Y})")
+    print("Drive to the red square. Blocks randomise each episode.")
+    print("Ctrl+C to stop and save.\n")
 
     try:
         for ep in range(total_episodes):
-            gz.call(gz.reset)
-            gz.call(gz.unpause)
+            # Randomise obstacles and teleport robot to green square
+            gz.randomise_blocks()
+            time.sleep(0.3)
+            gz.unpause_physics()
+            gz.teleport_robot()
             time.sleep(0.5)
 
-            with _lock:
-                obs = np.concatenate([lidar_bins.copy(), robot_pos.copy()])
-            step = 0
+            step      = 0
             ep_reward = 0.0
 
-            while step < max_steps:
-                # record state before action
+            while True:   # only collision or goal ends the episode
                 with _lock:
                     current_obs = np.concatenate([lidar_bins.copy(), robot_pos.copy()])
-                    action = cmd_vel.copy()
+                    action      = cmd_vel.copy()
 
-                gz.call(gz.unpause)
                 time.sleep(0.1)
 
                 with _lock:
-                    next_obs_arr = np.concatenate([lidar_bins.copy(), robot_pos.copy()])
-                    min_scan = lidar_bins.min()
+                    next_obs    = np.concatenate([lidar_bins.copy(), robot_pos.copy()])
+                    min_scan    = lidar_bins.min()
 
-                # reward / done logic
-                collision = min_scan < 0.35
-                dist_to_goal = np.hypot(
-                    next_obs_arr[N_BINS]     - GOAL_X,
-                    next_obs_arr[N_BINS + 1] - GOAL_Y)
+                dist_to_goal = np.hypot(next_obs[N_BINS]   - GOAL_X,
+                                        next_obs[N_BINS+1] - GOAL_Y)
+                collision    = min_scan < 0.25
                 goal_reached = dist_to_goal < GOAL_DELTA
 
-                if collision:
-                    reward = -100.0
-                elif goal_reached:
-                    reward = 100.0
-                else:
-                    reward = -0.01 - dist_to_goal * 0.01   # small shaping
-                done    = collision or goal_reached
-                timeout = (step == max_steps - 1)
+                reward = (-100.0 if collision else
+                          100.0  if goal_reached else
+                          -0.01 - dist_to_goal * 0.01)
 
                 obs_list.append(current_obs)
-                next_obs_list.append(next_obs_arr)
+                next_obs_list.append(next_obs)
                 action_list.append(action)
                 reward_list.append(reward)
-                done_list.append(done)
-                timeout_list.append(timeout)
+                done_list.append(collision or goal_reached)
                 ep_reward += reward
+                step      += 1
 
-                if done or timeout:
-                    reason = "COLLISION" if collision else ("GOAL" if goal_reached else "TIMEOUT")
-                    print(f"Episode {ep:3d} | steps={step:4d} | "
+                if collision or goal_reached:
+                    reason = "COLLISION" if collision else "GOAL"
+                    print(f"Ep {ep:3d} | steps={step:4d} | "
                           f"reward={ep_reward:8.2f} | {reason}")
                     break
-                step += 1
-
-            gz.call(gz.pause)
 
     except KeyboardInterrupt:
-        print("\nStopping early — saving collected data...")
+        print("\nStopping — saving data...")
 
-    # save
-    n_samples = len(obs_list)
-    print(f"\nSaving {n_samples} transitions to {save_path}")
+    n = len(obs_list)
+    print(f"Saving {n} transitions to {save_path}")
     with h5py.File(save_path, 'w') as hf:
         hf.create_dataset('observations',      data=np.array(obs_list,      dtype=np.float32))
         hf.create_dataset('next_observations', data=np.array(next_obs_list, dtype=np.float32))
         hf.create_dataset('actions',           data=np.array(action_list,   dtype=np.float32))
         hf.create_dataset('rewards',           data=np.array(reward_list,   dtype=np.float32))
         hf.create_dataset('terminals',         data=np.array(done_list,     dtype=bool))
-        hf.create_dataset('timeouts',          data=np.array(timeout_list,  dtype=bool))
     print("Done.")
-
     rclpy.shutdown()
 
 
 if __name__ == '__main__':
-    collect(total_episodes=100, max_steps=150)
+    collect(total_episodes=200)

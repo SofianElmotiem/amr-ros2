@@ -55,6 +55,7 @@
       <update_rate>50</update_rate>
       <joint_name>left_wheel_joint</joint_name>
       <joint_name>right_wheel_joint</joint_name>
+      <!-- casters are fixed joints — no joint states needed -->
       <joint_name>soulder_joint</joint_name>
       <joint_name>upper_arm_joint</joint_name>
       <joint_name>elbow_joint</joint_name>

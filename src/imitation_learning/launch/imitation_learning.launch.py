@@ -18,10 +18,11 @@ def generate_launch_description():
     plugin_path = os.path.join(
         get_package_prefix('robot_description'), 'lib', 'robot_description')
 
-    # models/ lives two levels above the install share directory
+    # models/ is at workspace_root/src/models
+    # install prefix is workspace_root/install/imitation_learning -> go up 2
     models_path = os.path.normpath(
         os.path.join(get_package_prefix('imitation_learning'),
-                     '..', '..', '..', 'src', 'models'))
+                     '..', '..', 'src', 'models'))
 
     set_plugin_path = SetEnvironmentVariable(
         name='GAZEBO_PLUGIN_PATH',
@@ -61,7 +62,7 @@ def generate_launch_description():
         package='gazebo_ros',
         executable='spawn_entity.py',
         arguments=['-topic', 'robot_description', '-entity', 'my_bot',
-                   '-x', '-2.8', '-y', '2.8', '-z', '0.05'],
+                   '-x', '-1.8', '-y', '1.8', '-z', '0.15'],
         output='screen')
 
     return LaunchDescription([

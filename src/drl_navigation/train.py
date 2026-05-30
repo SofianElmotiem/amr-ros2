@@ -74,7 +74,7 @@ def main(args=None):
                 latest_scan, distance, cos, sin, collision, goal, a
             )
             action = model.get_action(state, True)
-            a_in = [(action[0] + 1), action[1]]  # linear: [0,2] m/s
+            a_in = [(action[0] + 1) * 0.75, action[1]]  # linear: [0,1.5] m/s
 
             latest_scan, distance, cos, sin, collision, goal, a, reward = ros.step(
                 lin_velocity=a_in[0], ang_velocity=a_in[1]
