@@ -73,22 +73,33 @@ class OdomNode(Node):
             robot_pos[1] = msg.pose.pose.position.y
 
 class CmdVelNode(Node):
+    """Records teleop commands AND publishes zero if key released for > 0.15s."""
     def __init__(self):
         super().__init__('il_cmdvel_node')
+        self._pub  = self.create_publisher(Twist, '/cmd_vel', 10)
+        self._last = time.time()
         self.create_subscription(Twist, '/cmd_vel', self._cb, 1)
+        self.create_timer(0.05, self._watchdog)
+
     def _cb(self, msg):
         global cmd_vel
+        self._last = time.time()
         with _lock:
             cmd_vel[0] = msg.linear.x
             cmd_vel[1] = msg.angular.z
+
+    def _watchdog(self):
+        if time.time() - self._last > 0.15:
+            self._pub.publish(Twist())   # explicit zero stops the robot
 
 
 class GazeboServices(Node):
     def __init__(self):
         super().__init__('il_gazebo_node')
         self.unpause   = self.create_client(Empty, '/unpause_physics')
+        self.pause     = self.create_client(Empty, '/pause_physics')
         self.set_state = self.create_client(SetEntityState, '/gazebo/set_entity_state')
-        for cli in (self.unpause, self.set_state):
+        for cli in (self.unpause, self.pause, self.set_state):
             while not cli.wait_for_service(timeout_sec=2.0):
                 self.get_logger().info(f'Waiting for {cli.srv_name}...')
 
@@ -96,19 +107,25 @@ class GazeboServices(Node):
         fut = self.unpause.call_async(Empty.Request())
         rclpy.spin_until_future_complete(self, fut, timeout_sec=1.0)
 
-    def move_entity(self, name, x, y, z=BLOCK_Z, yaw=0.0):
+    def pause_physics(self):
+        fut = self.pause.call_async(Empty.Request())
+        rclpy.spin_until_future_complete(self, fut, timeout_sec=1.0)
+
+    def move_entity(self, name, x, y, z=BLOCK_Z):
         req = SetEntityState.Request()
         req.state.name = name
         req.state.pose.position.x = float(x)
         req.state.pose.position.y = float(y)
         req.state.pose.position.z = float(z)
-        req.state.pose.orientation.w = float(np.cos(yaw / 2))
-        req.state.pose.orientation.z = float(np.sin(yaw / 2))
+        req.state.pose.orientation.x = 0.0
+        req.state.pose.orientation.y = 0.0
+        req.state.pose.orientation.z = 0.0
+        req.state.pose.orientation.w = 1.0  # perfectly upright, no rotation
         fut = self.set_state.call_async(req)
         rclpy.spin_until_future_complete(self, fut, timeout_sec=1.0)
 
     def teleport_robot(self):
-        self.move_entity('my_bot', START_X, START_Y, z=0.15, yaw=0.0)
+        self.move_entity('my_bot', START_X, START_Y, z=0.15)
 
     def randomise_blocks(self):
         """Move all 14 blocks to random non-overlapping positions."""
@@ -122,7 +139,7 @@ class GazeboServices(Node):
                 y = rng.uniform(*STAGE_Y)
                 if all(np.hypot(x-px, y-py) >= min_sep for px, py in placed):
                     placed.append((x, y))
-                    self.move_entity(name, x, y, yaw=rng.uniform(0, 2*np.pi))
+                    self.move_entity(name, x, y)  # no rotation, upright
                     break
 
 
@@ -151,12 +168,14 @@ def collect(total_episodes=200, save_path=None):
 
     try:
         for ep in range(total_episodes):
-            # Randomise obstacles and teleport robot to green square
+            # Pause physics → move blocks + robot → unpause
+            # (pausing prevents blocks from falling during repositioning)
+            gz.pause_physics()
             gz.randomise_blocks()
-            time.sleep(0.3)
-            gz.unpause_physics()
             gz.teleport_robot()
-            time.sleep(0.5)
+            time.sleep(0.2)
+            gz.unpause_physics()
+            time.sleep(0.3)
 
             step      = 0
             ep_reward = 0.0
