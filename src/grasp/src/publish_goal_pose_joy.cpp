@@ -30,6 +30,10 @@ public:
         joy_sub_ = this->create_subscription<sensor_msgs::msg::Joy>(
             "/joy", 10,
             std::bind(&JoyControlRobot::joyCallback, this, std::placeholders::_1));
+
+        vision_grasp_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+            "/grasp_target_pose", 10,
+            std::bind(&JoyControlRobot::visionGraspCallback, this, std::placeholders::_1));
     }
 
     void initializeMoveGroup() {
@@ -222,6 +226,26 @@ private:
         }
     }
 
+    void visionGraspCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) {
+        if (!arm_move_group) {
+            RCLCPP_WARN(this->get_logger(), "MoveGroupInterface not initialized yet.");
+            return;
+        }
+
+        current_pose = arm_move_group->getCurrentPose();
+
+        // approach: target XY at current EE height
+        target_pose.position.x = msg->pose.position.x;
+        target_pose.position.y = msg->pose.position.y;
+        target_pose.position.z = current_pose.pose.position.z;
+        target_pose.orientation = current_pose.pose.orientation;
+        pose_target_plan_and_execute(target_pose);
+
+        // grasp: lower to object height
+        target_pose.position.z = msg->pose.position.z;
+        pose_target_plan_and_execute(target_pose);
+    }
+
     void tfCallback(const tf2_msgs::msg::TFMessage::SharedPtr msg) {
         for (const auto& transform : msg->transforms)
         {
@@ -257,6 +281,7 @@ private:
 
     rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
     rclcpp::Subscription<tf2_msgs::msg::TFMessage>::SharedPtr tf_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr vision_grasp_sub_;
     moveit::planning_interface::MoveGroupInterface::Plan my_plan_;
     std::shared_ptr<moveit::planning_interface::MoveGroupInterface> arm_move_group;
     std::shared_ptr<moveit::planning_interface::MoveGroupInterface> gripper_move_group;

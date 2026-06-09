@@ -25,7 +25,7 @@ class Camera_subscriber(Node):
 
         self.subscription = self.create_subscription(
             Image,
-            'rgb_cam/image_raw',
+            '/rgbd_camera/image_raw',
             self.camera_callback,
             10)
         self.subscription 
@@ -36,7 +36,7 @@ class Camera_subscriber(Node):
     def camera_callback(self, data):
 
         img = bridge.imgmsg_to_cv2(data, "bgr8")
-        results = self.model(img)
+        results = self.model.track(img, persist=True)
 
         self.yolov8_inference.header.frame_id = "inference"
         self.yolov8_inference.header.stamp = self.get_clock().now().to_msg()
@@ -45,9 +45,11 @@ class Camera_subscriber(Node):
             boxes = r.boxes
             for box in boxes:
                 self.inference_result = InferenceResult()
-                b = box.xyxy[0].to('cpu').detach().numpy().copy()  # get box coordinates in (top, left, bottom, right) format
+                b = box.xyxy[0].to('cpu').detach().numpy().copy()
                 c = box.cls
                 self.inference_result.class_name = self.model.names[int(c)]
+                self.inference_result.confidence = float(box.conf)
+                self.inference_result.track_id = int(box.id) if box.id is not None else -1
                 self.inference_result.top = int(b[0])
                 self.inference_result.left = int(b[1])
                 self.inference_result.bottom = int(b[2])

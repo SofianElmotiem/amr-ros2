@@ -44,6 +44,9 @@ install(
   PROGRAMS
   scripts/yolov8_ros2_pt.py
   scripts/yolov8_ros2_subscriber.py
+  scripts/detection_3d.py
+  scripts/detection_to_costmap.py
+  scripts/grasp_from_detection.py
   launch/launch_yolov8.launch.py
   DESTINATION lib/${PROJECT_NAME}
 )
