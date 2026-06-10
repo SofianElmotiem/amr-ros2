@@ -131,6 +131,22 @@ This launches four nodes that together turn camera images into actionable 3D inf
 3. **`detection_to_costmap.py`** — converts `/detections_3d` into a point cloud on `/detection_obstacles`, which is fed into the Nav2 local and global costmaps as an additional obstacle source.
 4. **`grasp_from_detection.py`** — watches `/detections_3d` for a stable detection of a configured `target_class` and publishes a grasp pose on `/grasp_target_pose`.
 
+```mermaid
+flowchart TD
+    A["/rgbd_camera/image_raw"] --> B["yolov8_ros2_pt.py<br/>(YOLOv8 + tracking)"]
+    B --> C["/Yolov8_Inference"]
+    D["/rgbd_camera/depth/image_raw"] --> E
+    F["/rgbd_camera/camera_info"] --> E
+    C --> E["detection_3d.py<br/>(3D back-projection + TF to map)"]
+    E --> G["/detections_3d"]
+    G --> H["detection_to_costmap.py"]
+    G --> I["grasp_from_detection.py"]
+    H --> J["/detection_obstacles"]
+    J --> K["Nav2 costmaps"]
+    I --> L["/grasp_target_pose"]
+    L --> M["grasp: publish_goal_pose_joy<br/>(MoveIt2 grasp execution)"]
+```
+
 The target class and confidence threshold can be set at launch or at runtime, e.g.:
 
 ```bash
