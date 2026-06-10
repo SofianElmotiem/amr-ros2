@@ -6,11 +6,11 @@ from rclpy.node import Node
 from rclpy.duration import Duration
 from rclpy.time import Time
 from sensor_msgs.msg import Image, CameraInfo
-from geometry_msgs.msg import Point, Quaternion, Vector3, PoseStamped
+from geometry_msgs.msg import Point, Quaternion, Vector3, Pose
 from vision_msgs.msg import Detection3DArray, Detection3D, ObjectHypothesisWithPose, ObjectHypothesis
 from cv_bridge import CvBridge
 import tf2_ros
-import tf2_geometry_msgs  # registers PoseStamped transform handler
+from tf2_geometry_msgs import do_transform_pose
 from yolov8_msgs.msg import Yolov8Inference
 
 bridge = CvBridge()
@@ -52,20 +52,24 @@ class Detection3DNode(Node):
         cx, cy = K[2], K[5]
         cam_frame = self._latest_depth.header.frame_id
 
-        # check once whether TF to target frame is available for this batch
-        tf_available = self._tf_buffer.can_transform(
-            self._target_frame, cam_frame, Time(), Duration(seconds=0.05)
-        )
-        if not tf_available:
+        # look up the latest available transform once for the whole batch
+        # (using Time() = latest avoids "extrapolation into the future" errors,
+        # since the inference header stamp lags behind the TF buffer)
+        transform = None
+        try:
+            transform = self._tf_buffer.lookup_transform(
+                self._target_frame, cam_frame, Time(), Duration(seconds=0.05)
+            )
+        except Exception as e:
             self.get_logger().warn(
-                f'TF {cam_frame} -> {self._target_frame} not available, '
+                f'TF {cam_frame} -> {self._target_frame} unavailable ({e}), '
                 'publishing in camera frame',
                 throttle_duration_sec=5.0,
             )
 
         out = Detection3DArray()
         out.header.stamp = msg.header.stamp
-        out.header.frame_id = self._target_frame if tf_available else cam_frame
+        out.header.frame_id = self._target_frame if transform is not None else cam_frame
 
         for det in msg.yolov8_inference:
             # InferenceResult xyxy: top=x1, left=y1, bottom=x2, right=y2
@@ -89,20 +93,14 @@ class Detection3DNode(Node):
             width_px = abs(det.bottom - det.top)
             height_px = abs(det.right - det.left)
 
-            if tf_available:
-                ps = PoseStamped()
-                ps.header.stamp = msg.header.stamp
-                ps.header.frame_id = cam_frame
-                ps.pose.position.x = X_cam
-                ps.pose.position.y = Y_cam
-                ps.pose.position.z = Z_cam
-                ps.pose.orientation.w = 1.0
-                try:
-                    ps = self._tf_buffer.transform(ps, self._target_frame, timeout=Duration(seconds=0.05))
-                    X, Y, Z = ps.pose.position.x, ps.pose.position.y, ps.pose.position.z
-                except Exception as e:
-                    self.get_logger().warn(f'TF transform failed: {e}', throttle_duration_sec=5.0)
-                    X, Y, Z = X_cam, Y_cam, Z_cam
+            if transform is not None:
+                cam_pose = Pose()
+                cam_pose.position.x = X_cam
+                cam_pose.position.y = Y_cam
+                cam_pose.position.z = Z_cam
+                cam_pose.orientation.w = 1.0
+                map_pose = do_transform_pose(cam_pose, transform)
+                X, Y, Z = map_pose.position.x, map_pose.position.y, map_pose.position.z
             else:
                 X, Y, Z = X_cam, Y_cam, Z_cam
 
